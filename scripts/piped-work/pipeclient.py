@@ -69,13 +69,12 @@ Released under terms of the GNU General Public License version 2:
 
 """
 
+import argparse
+import errno
 import os
 import sys
 import threading
 import time
-import errno
-import argparse
-
 
 if sys.version_info[0] < 3 and sys.version_info[1] < 7:
     sys.exit('PipeClient Error: Python 2.7 or later required')
@@ -249,6 +248,7 @@ def bool_from_string(strval):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+
 def main():
     """Interactive command-line for PipeClient"""
 
@@ -271,11 +271,11 @@ def main():
     while True:
         reply = ''
         if sys.version_info[0] < 3:
-            #pylint: disable=undefined-variable
+            # pylint: disable=undefined-variable
             message = raw_input("\nEnter command or 'Q' to quit: ")
         else:
-            message = input( #pylint: disable=bad-builtin
-                "\nEnter command or 'Q' to quit: ")
+            message = input(  # pylint: disable=bad-builtin
+                    "\nEnter command or 'Q' to quit: ")
         start = time.time()
         if message.upper() == 'Q':
             sys.exit(0)

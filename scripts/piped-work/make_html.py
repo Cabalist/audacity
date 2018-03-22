@@ -4,14 +4,17 @@
 import glob
 import os
 
-def getFiles() :
+
+def getFiles():
     files = glob.glob("C:\\OpenSourceGit\\AudacityTeamTools\\wit-html\\auto_images\\*.png")
     files.sort(key=os.path.getmtime)
-    return [ os.path.basename( name ) for name in files ]
-    #print("\n".join(files))
+    return [os.path.basename(name) for name in files]
+    # print("\n".join(files))
 
-def oneItem( name ) :
-    return "<img src='./auto_images/"+name+"'><br><em>"+name+"</em><br>"
+
+def oneItem(name):
+    return "<img src='./auto_images/" + name + "'><br><em>" + name + "</em><br>"
+
 
 files = getFiles()
-print( "\n".join( [ oneItem(name) for name in files ] ) )
+print("\n".join([oneItem(name) for name in files]))
