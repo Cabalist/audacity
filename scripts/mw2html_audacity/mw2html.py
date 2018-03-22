@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+# coding=utf-8
 
 """
 mw2html - Mediawiki to static HTML
@@ -18,37 +19,32 @@ Minor tweaks (for Audacity) By James Crook, Nov 2009.
 ...
 """
 
+from __future__ import print_function
+
 __version__ = '0.1.0.1'
 
+import errno
+import getopt
+import hashlib
+import os
+import os.path
+import random
 import re
 import sys
-import getopt
-import random
-import urllib
 import textwrap
-import urlparse
-import os, os.path
-
-import errno
-import hashlib
-import httplib
-#import pdb
-from time import strftime
+import urllib
 from shutil import copyfile
+from time import strftime
 
-try:
-    set
-except:
-    from sets import Set as set
+import httplib
+import urlparse
 
 try:
     import htmldata
 except:
-    print 'Requires Python htmldata module:'
-    print '  http://www.connellybarnes.com/code/htmldata/'
+    print('Requires Python htmldata module:')
+    print('  http://www.connellybarnes.com/code/htmldata/')
     sys.exit()
-
-
 
 config = None
 MOVE_HREF = 'movehref'
@@ -66,12 +62,14 @@ conn = None
 headers = {"User-Agent": "mw2html.py/Audacity"}
 domain = ''
 
-MONOBOOK_SKIN = 'monobook'    # Constant identifier for Monobook.
+MONOBOOK_SKIN = 'monobook'  # Constant identifier for Monobook.
+
 
 class Config:
     """
     Instances contain all options passed at the command line.
     """
+
     def __init__(self, rooturl, outdir,
                  flatten=True, index=None, clean=True,
                  sidebar=None, hack_skin=True,
@@ -103,20 +101,20 @@ class Config:
         self.no_images = no_images
 
 
-
 def get_domain(u):
     """
     Get domain of URL.
     """
     url = normalize_url(u)
 
-    #ParseResult(scheme='http', netloc='www.cwi.nl:80', path='/%7Eguido/Python.html', params='', query='', fragment='')
+    # ParseResult(scheme='http', netloc='www.cwi.nl:80', path='/%7Eguido/Python.html', params='', query='', fragment='')
     L = list(urlparse.urlparse(url))
 
     return L[1]
 
+
 def normalize_url(url, lower=True):
-# url normalization - only for local comparison operations, use original url for online requests
+    # url normalization - only for local comparison operations, use original url for online requests
     url = split_section(url)[0]
 
     if lower:
@@ -139,32 +137,34 @@ def normalize_url(url, lower=True):
 
     return url
 
+
 def find_tag_limits(doc, filter_string, end_tag, start_tag, start_point=0):
-# find tag limits - start_string must be an unique identifier within doc
+    # find tag limits - start_string must be an unique identifier within doc
 
     i1 = doc.find(filter_string, start_point)
 
     if i1 == -1:
-        return (-1, -1)
+        return -1, -1
 
     aux = doc.rfind(start_tag, start_point, i1 + len(filter_string))
 
     # we've found the filter_string but it has not the start_tag, so we return a different value
     # telling the script to keep searching starting on the end of the filter_string found
     if aux == -1:
-        return (-2, i1 + len(filter_string))
+        return -2, i1 + len(filter_string)
 
     i1 = aux
     sdiv = i1
     ediv = i1 + len(start_tag)
-    while(sdiv < ediv and sdiv != -1):
+    while sdiv < ediv and sdiv != -1:
         sdiv = doc.find(start_tag, sdiv + len(start_tag))
-        ediv = doc.find(end_tag  , ediv + len(end_tag))
+        ediv = doc.find(end_tag, ediv + len(end_tag))
 
-    return (i1, ediv)
+    return i1, ediv
+
 
 def clean_tag(doc, filter_string, end_tag, start_tag):
-    #clean tagged text function
+    # clean tagged text function
     start_point = 0
     while True:
         (start1, start2) = find_tag_limits(doc, filter_string, end_tag, start_tag, start_point)
@@ -173,17 +173,19 @@ def clean_tag(doc, filter_string, end_tag, start_tag):
         if start1 == -2:
             start_point = start2
             continue
-        end1 = doc.find('>', start1) + 1;
-        end2 = start2 + len(end_tag);
+        end1 = doc.find('>', start1) + 1
+        end2 = start2 + len(end_tag)
         doc = doc[:start1] + doc[end1:start2] + doc[end2:]
 
+
 def remove_tag(doc, start_string, end_tag, start_tag):
-    #remove tagged text function
+    # remove tagged text function
     while True:
         (i1, i2) = find_tag_limits(doc, start_string, end_tag, start_tag)
         if i1 == -1 or i2 == -1:
             return doc
         doc = doc[:i1] + doc[i2 + len(end_tag):]
+
 
 def monobook_fix_html(doc, page_url):
     """
@@ -196,7 +198,7 @@ def monobook_fix_html(doc, page_url):
 
     # Obselete substitutions.
     # doc = remove_tag(doc, '<div class="portlet" id="p-editors">', '</div>', '<div')
-    #James also remove the page/discussion/source/history/ div.
+    # James also remove the page/discussion/source/history/ div.
     doc = remove_tag(doc, '<li id="ca-', '</li>', '<li')
     doc = remove_tag(doc, '<div id="p-search" class="portlet"', '</div>', '<div')
     doc = remove_tag(doc, '<div class="portlet" id="p-personal"', '</div>', '<div')
@@ -206,12 +208,10 @@ def monobook_fix_html(doc, page_url):
     doc = remove_tag(doc, '<div class="generated-sidebar portlet" id="p-ToDo"', '</div>', '<div')
     doc = remove_tag(doc, '<div class="portlet" id="p-tb"', '</div>', '<div')
     doc = remove_tag(doc, '<div id="catlinks"', '</div>', '<div')
-    #remove javascript.
+    # remove javascript.
     doc = remove_tag(doc, '<script', '</script>', '<script')
 
-
-
-    #andre special mode
+    # andre special mode
     if config.special_mode:
         # Remove ul list
         doc = remove_tag(doc, '<ul id="f-list">', '</ul>', '<ul')
@@ -233,8 +233,8 @@ def monobook_fix_html(doc, page_url):
     else:
         # Remove powered by MediaWiki logo
         doc = re.sub(
-          r'<div id="f-poweredbyico">[\s\S]+?(<ul id="f-list">)',
-          r'\1', doc)
+                r'<div id="f-poweredbyico">[\s\S]+?(<ul id="f-list">)',
+                r'\1', doc)
 
         # Remove page has been accessed X times list item.
         doc = re.sub(r'<li id="f-viewcount">[\s\S]+?</li>', r'', doc)
@@ -247,8 +247,8 @@ def monobook_fix_html(doc, page_url):
     doc = remove_tag(doc, '<span class="editsection"', '</span>', '<span')
     doc = re.sub(r'<h2>Navigation menu</h2>', r'', doc)
 
-
     return doc
+
 
 def pre_html_transform(doc, url):
     """
@@ -271,17 +271,18 @@ def pre_html_transform(doc, url):
         doc = fix_move_href_tags(doc)
     if config.remove_history:
         doc = html_remove_image_history(doc)
-        
+
     doc = html_remove_translation_links(doc)
 
     return doc
 
-def pos_html_transform(doc, url,filename):
+
+def pos_html_transform(doc, url, filename):
     global footer_text, config, sidebar_html
     url = normalize_url(url, False)
 
     # Add sidebar.html
-    if config.sidebar != None and sidebar_html == '':
+    if config.sidebar is not None and sidebar_html == '':
         f = open(config.sidebar, 'rU')
         sidebar_html = f.read()
         f.close()
@@ -289,7 +290,7 @@ def pos_html_transform(doc, url,filename):
     # doc = re.sub(r'(<!-- end of the left \(by default at least\) column -->)', sidebar_html + r'\1', doc)
 
     # Remove empty links
-    doc = clean_tag(doc, 'href=""', '</a>', '<a ');
+    doc = clean_tag(doc, 'href=""', '</a>', '<a ')
 
     if config.special_mode:
         # Remove external link rel stylesheet
@@ -298,14 +299,13 @@ def pos_html_transform(doc, url,filename):
         # Remove external javascript
         doc = re.sub(r'<script type="text/javascript" src="http://[\s\S]+?</script>', r'', doc)
 
-
     # Add back relevant stylesheet.
     top_level_dir = config.outdir
-    if (os.path.dirname(os.path.dirname(filename)) == config.outdir):
+    if os.path.dirname(os.path.dirname(filename)) == config.outdir:
         doc = re.sub(r'</head>',
                      '<link rel="stylesheet" href="m/skins/monobook/main.css/303.css" media="screen" />\n</head>', doc,
                      flags=re.DOTALL)
-    elif (os.path.dirname(os.path.dirname(os.path.dirname(filename))) == config.outdir):
+    elif os.path.dirname(os.path.dirname(os.path.dirname(filename))) == config.outdir:
         doc = re.sub(r'</head>',
                      '<link rel="stylesheet" href="../m/skins/monobook/main.css/303.css" media="screen" />\n</head>',
                      doc,
@@ -323,7 +323,7 @@ def pos_html_transform(doc, url,filename):
     # match correct divs
     (i1, i2) = find_tag_limits(doc, s1, '</div>', '<div')
 
-    if (i1 == -1):
+    if i1 == -1:
         return doc
 
     if footer_text == '':
@@ -344,6 +344,7 @@ def pos_html_transform(doc, url,filename):
         doc = doc[:i1 + len(s1)] + footer_html + doc[i2:]
 
     return doc
+
 
 def fix_move_href_tags(doc):
     """
@@ -369,6 +370,7 @@ def fix_move_href_tags(doc):
         doc = doc[:start] + htmldata.tagjoin(new_tags) + doc[end:]
     return doc
 
+
 def html_remove_image_history(doc):
     """
     Remove image history and links to information.
@@ -376,6 +378,7 @@ def html_remove_image_history(doc):
     doc = re.sub(r'<h2>Image history</h2>[\s\S]+?</ul>', r'', doc)
     doc = re.sub(r'<h2>Image links</h2>[\s\S]+?</ul>', r'', doc)
     return doc
+
 
 def html_remove_translation_links(doc):
     """
@@ -389,6 +392,7 @@ def html_remove_translation_links(doc):
     doc = re.sub(r'<a href="[^"]+/[a-z]{2}_[A-Z]{2}[/"][\s\S]+?</a>', r'', doc)
     return doc
 
+
 def monobook_hack_skin_html(doc):
     """
     Hacks Monobook HTML output: use CSS ids for hacked skin.
@@ -399,6 +403,7 @@ def monobook_hack_skin_html(doc):
     doc = doc.replace('<div id="footer">', '<div id="footerHacked">')
     doc = doc.replace('</body>', '<br></body>')
     return doc
+
 
 def monobook_hack_skin_css(doc, url):
     """
@@ -448,13 +453,14 @@ def monobook_hack_skin_css(doc, url):
     assert c1 in doc
 
     doc = doc.replace(c1, '/* edit by mw2html */\n' + c2 +
-                          '\n/* end edit by mw2html */\n')
+                      '\n/* end edit by mw2html */\n')
 
     # Remove external link icons.
     if config.remove_png:
         doc = re.sub(r'#bodyContent a\[href \^="http://"\][\s\S]+?\}', r'', doc)
 
     return doc
+
 
 def post_css_transform(doc, url):
     """
@@ -472,14 +478,17 @@ def post_css_transform(doc, url):
             raise ValueError('unknown skin')
     return doc
 
+
 def move_to_index_if_needed(ans):
     global config
     if ans.endswith(config.index):
         ans = ans[:len(ans) - len(config.index)] + INDEX_HTML
     return ans
 
+
 def file_exists_in_written_set(filename):
     return os.path.normcase(os.path.normpath(filename)) in wrote_file_set
+
 
 def find_unused_filename(filename, exists=os.path.exists):
     """
@@ -499,6 +508,7 @@ def find_unused_filename(filename, exists=os.path.exists):
         if not exists(fullname):
             return fullname
         i += 1
+
 
 def clean_filename(url, ans):
     # Split outdir and our file/dir under outdir
@@ -531,8 +541,10 @@ def clean_filename(url, ans):
                 ans = 'math_' + hashlib.md5(tail).hexdigest()[:4] + '.png'
     return os.path.join(par, ans)
 
+
 def flatten_filename(url, filename):
     global config
+
     def get_fullname(relname):
         return os.path.join(config.outdir, relname)
 
@@ -545,15 +557,17 @@ def flatten_filename(url, filename):
         ans = os.path.splitext(ans)[0] + orig_ext
     return os.path.join(config.outdir, ans)
 
+
 def split_section(url):
     """
     Splits into (head, tail), where head contains no '#' and is max length.
     """
     if '#' in url:
         i = url.index('#')
-        return (url[:i], url[i:])
+        return url[:i], url[i:]
     else:
-        return (url, '')
+        return url, ''
+
 
 def url_open(url):
     # download a file and retrieve its content and mimetype
@@ -567,11 +581,12 @@ def url_open(url):
         L = urlparse.urlparse(url)
         if L[1] != domain:
             conn.close()
-            if L[1] == '': return(['',''])
-            print "connection to", domain, "closed."
+            if L[1] == '':
+                return ['', '']
+            print("connection to", domain, "closed.")
             conn = httplib.HTTPConnection(L[1])
             domain = L[1]
-            print "connection to", domain, "opened."
+            print("connection to", domain, "opened.")
 
         rel_url = url
         pos = url.find(domain)
@@ -579,60 +594,60 @@ def url_open(url):
             rel_url = url[pos + len(domain):]
 
         attempts = 0
-        #number of attempts
+        # number of attempts
         total_attempts = 3
         recovered = False
         success = False
 
         while not success and attempts < total_attempts:
-            #increment httplib requests counter
+            # increment httplib requests counter
             counter += 1
             try:
-                conn.request("GET", rel_url,headers=headers)
+                conn.request("GET", rel_url, headers=headers)
                 r = conn.getresponse()
-                print 'Status', r.status, r.reason, 'accessing', rel_url
+                print('Status', r.status, r.reason, 'accessing', rel_url)
                 if r.status == 404:
-                    print "   it's not possible to recover this error."
+                    print("   it's not possible to recover this error.")
                     errors += 1
-                    return ('', '')
+                    return '', ''
                 if r.status == 500:
-                    print "   eventually this error might be recovered. let's try again."
-                    print '   reconnecting...'
+                    print("   eventually this error might be recovered. let's try again.")
+                    print('   reconnecting...')
                     conn = httplib.HTTPConnection(domain)
                     attempts += 1
                     continue
                 if r.status == 403:
-                    print "   that shouldn't happen, but let's try again anyway."
-                    print '   reconnecting...'
+                    print("   that shouldn't happen, but let's try again anyway.")
+                    print('   reconnecting...')
                     conn = httplib.HTTPConnection(domain)
                     attempts += 1
                     continue
                 if attempts != 0:
                     recovered = True
                 if r.status != 200:
-                    print "      Status other than 200, 404, 500, 403. It is: ", r.status
+                    print("      Status other than 200, 404, 500, 403. It is: ", r.status)
                 success = True
 
-            except httplib.HTTPException, e:
-                print 'ERROR', e.__class__.__name__, 'while retrieving', url
+            except httplib.HTTPException as e:
+                print('ERROR', e.__class__.__name__, 'while retrieving', url)
                 conn.close
                 if e.__class__.__name__ in ['BadStatusLine', 'ImproperConnectionState', 'NotConnected', 'IncompleteRead', 'ResponseNotReady']:
-                    print "eventually this error might be recovered. let's try again."
-                    print 'reconnecting...'
+                    print("eventually this error might be recovered. let's try again.")
+                    print('reconnecting...')
                     conn = httplib.HTTPConnection(domain)
                     attempts += 1
                 else:
-                    print "it's not possible to recover this error."
+                    print("it's not possible to recover this error.")
                     errors += 1
-                    return ('', '')
+                    return '', ''
 
         if recovered:
-            print "error recovered"
+            print("error recovered")
 
         if not success:
-            print "it was not possible to recover this error."
+            print("it was not possible to recover this error.")
             errors += 1
-            return ('', '')
+            return '', ''
 
         redirect = r.getheader('Location', '').split(';')[0]
 
@@ -646,7 +661,8 @@ def url_open(url):
 
     mimetype = r.getheader('Content-Type', '').split(';')[0].lower()
 
-    return (doc, mimetype)
+    return doc, mimetype
+
 
 def url_to_filename(url):
     """
@@ -660,41 +676,39 @@ def url_to_filename(url):
     if nurl in url_filename_cache:
         return url_filename_cache[nurl]
 
-    #ParseResult(scheme='http', netloc='www.cwi.nl:80', path='/%7Eguido/Python.html', params='', query='', fragment='')
+    # ParseResult(scheme='http', netloc='www.cwi.nl:80', path='/%7Eguido/Python.html', params='', query='', fragment='')
     turl = re.sub(r'm/index.php\?title=', r'man/', nurl)
     turl = re.sub(r'.css&[\S\s]+', r'.css', turl)
     L = list(urlparse.urlparse(turl))
 
-    #this way the url will not create a folder outside of the maindomain
+    # this way the url will not create a folder outside of the maindomain
     droot = get_domain(config.rooturl)
-    if (L[1] != droot):
+    if L[1] != droot:
         L[1] = droot
 
     L[2] = L[2].strip('/')
     lpath = L[2].split('/')
-    if not '.' in lpath[-1]:
+    if '.' not in lpath[-1]:
         # url ends with a directory name.  Store it under index.html.
         # L[2] += '/' + INDEX_HTML
-        L[2]=L[2]
+        L[2] = L[2]
     else:
         # 'title=' parsing
         if L[4].startswith('title=') and L[2].endswith('index.php'):
             L[4] = L[4][len('title='):]
             L[2] = L[2][:-len('index.php')]
-            
-    if lpath[-1]=='man':
+
+    if lpath[-1] == 'man':
         L[2] = INDEX_HTML
-    if lpath[-1].lower().startswith( 'quick_help'):
+    if lpath[-1].lower().startswith('quick_help'):
         L[2] = QHELP_HTML
         L[3] = ''
-        
-       
 
     L[2] = L[2].strip('/')
 
-    #don't sanitize / for path
+    # don't sanitize / for path
     L[0] = ''
-    L[2] = urllib.quote_plus(L[2],'/')
+    L[2] = urllib.quote_plus(L[2], '/')
     L[3] = urllib.quote_plus(L[3])
     L[4] = urllib.quote_plus(L[4])
     L[5] = urllib.quote_plus(L[5])
@@ -717,10 +731,10 @@ def url_to_filename(url):
     # Fix up extension based on mime type.
     # Maps mimetype to file extension
     MIME_MAP = {
-     'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif',
-     'image/tiff': 'tiff', 'text/plain': 'txt', 'text/html': 'html',
-     'text/rtf': 'rtf', 'text/css': 'css', 'text/sgml': 'sgml',
-     'text/xml': 'xml', 'application/zip': 'zip'
+        'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif',
+        'image/tiff': 'tiff', 'text/plain': 'txt', 'text/html': 'html',
+        'text/rtf': 'rtf', 'text/css': 'css', 'text/sgml': 'sgml',
+        'text/xml': 'xml', 'application/zip': 'zip'
     }
 
     if mimetype in MIME_MAP:
@@ -738,7 +752,7 @@ def url_to_filename(url):
     if config.clean:
         ans = clean_filename(nurl, ans)
 
-    if config.index != None:
+    if config.index is not None:
         ans = move_to_index_if_needed(ans)
 
     ans = find_unused_filename(ans, file_exists_in_written_set)
@@ -752,14 +766,14 @@ def url_to_filename(url):
     # Make parent directory if it doesn't exist.
     try:
         os.makedirs(os.path.split(ans)[0])
-    except OSError, e:
+    except OSError as e:
         if e.errno != errno.EEXIST:
             raise
 
     # Not really needed since we checked that the directory
     # outdir didn't exist at the top of run(), but let's double check.
     if os.path.exists(ans) and not config.overwrite:
-        out.write('File already exists: ' + str(ans)) #@UndefinedVariable
+        out.write('File already exists: ' + str(ans))  # @UndefinedVariable
         sys.exit(1)
 
     f = open(ans, mode)
@@ -767,6 +781,7 @@ def url_to_filename(url):
     f.close()
 
     return ans
+
 
 def url_to_relative(url, cururl):
     """
@@ -793,6 +808,7 @@ def url_to_relative(url, cururl):
     else:
         return rel_url
 
+
 def parse_css(doc, url):
     """
     Returns (modified_doc, new_urls), where new_urls are absolute URLs for
@@ -817,7 +833,8 @@ def parse_css(doc, url):
     newdoc = htmldata.urljoin(doc, L)
     newdoc = post_css_transform(newdoc, url)
 
-    return (newdoc, new_urls)
+    return newdoc, new_urls
+
 
 def should_follow(url):
     """
@@ -829,63 +846,63 @@ def should_follow(url):
     global config
 
     # we don't have search on the local version
-    if (url.endswith('#searchInput')):
+    if url.endswith('#searchInput'):
         return False
 
     # False if different domains.
     nurl = normalize_url(url)
     droot = get_domain(config.rooturl)
     dn = get_domain(nurl)
-    #if droot != dn and not (dn.endswith(droot) or droot.endswith(dn)):
+    # if droot != dn and not (dn.endswith(droot) or droot.endswith(dn)):
     if droot != dn:
         if config.debug:
-            print url, 'not in the same domain'
+            print(url, 'not in the same domain')
         return False
 
     # False if multiple query fields or parameters found
     if (url.count('&') >= 1 or url.count(';') > 0) and not any(x in url for x in ('.css', 'gen=css')):
         if config.debug:
-            print url, 'with multiple query fields'
+            print(url, 'with multiple query fields')
         return False
 
     if any(x in url for x in ('Special:', 'Image:', 'Talk:', 'User:', 'Help:', 'User_talk:', 'MediaWiki_talk:', 'File:', 'action=edit', 'title=-')):
         if config.debug:
-            print url, 'is a forbidden wiki page'
+            print(url, 'is a forbidden wiki page')
         return False
 
     if config.no_images and any(url.strip().lower().endswith(suffix) for suffix in ('.jpg', '.gif', '.png', '.ico')):
         if config.debug:
-            print url, 'is a image and you are in no-images mode'
+            print(url, 'is a image and you are in no-images mode')
         return False
 
     if any(url.strip().lower().endswith(suffix) for suffix in ('.zip', '.7z')):
         if config.debug:
-            print url, 'is a compressed file'
+            print(url, 'is a compressed file')
         return False
-
 
     # limit_parent support
     ncurl = normalize_url(config.rooturl)
 
     if config.limit_parent and not nurl.startswith(ncurl):
         L = nurl.split('/')
-        if ('.' not in L[-1]):
+        if '.' not in L[-1]:
             if config.debug:
-                print url, 'is a file outside of scope with unknown extension'
+                print(url, 'is a file outside of scope with unknown extension')
             return False
 
         # JKC: we do allow css from 'strange' places.
         if '.css' in L[-1]:
             return True
-        
+
         forbidden_parents = ['.php', '.html', '.htm']
         for fp in forbidden_parents:
             if fp in L[-1]:
                 if config.debug:
-                    print url, 'is a page outside of scope'
+                    print(url, 'is a page outside of scope')
                 return False
 
     return True
+
 
 def parse_html(doc, url, filename):
     """
@@ -906,7 +923,6 @@ def parse_html(doc, url, filename):
     doc = doc.replace('<!--', BEGIN_COMMENT_REPLACE)
     doc = doc.replace('-->', END_COMMENT_REPLACE)
 
-
     L = htmldata.urlextract(doc, url, 'text/html')
 
     # in this code we change each absolute url in L
@@ -915,10 +931,10 @@ def parse_html(doc, url, filename):
     # more pages.
     for item in L:
         u = item.url
-        follow = should_follow(u) #and (counter < 10)
+        follow = should_follow(u)  # and (counter < 10)
         if follow:
             if config.debug:
-                print 'ACCEPTED   - ', u
+                print('ACCEPTED   - ', u)
             # Store url locally.
             new_urls += [u]
             item.url = url_to_relative(u, url)
@@ -927,25 +943,26 @@ def parse_html(doc, url, filename):
             # if not any( license in u for license in ('creativecommons.org', 'wxwidgets.org', 'gnu.org', 'mediawiki.org') ):
             #  item.url = ''
             if config.debug:
-                print 'NOT INCLUDED     - ', u
+                print('NOT INCLUDED     - ', u)
 
     newdoc = htmldata.urljoin(doc, L)
     newdoc = newdoc.replace(BEGIN_COMMENT_REPLACE, '<!--')
     newdoc = newdoc.replace(END_COMMENT_REPLACE, '-->')
 
-    newdoc = pos_html_transform(newdoc, url,filename)
+    newdoc = pos_html_transform(newdoc, url, filename)
 
-    return (newdoc, new_urls)
+    return newdoc, new_urls
 
-def deploy_file( src, dest ):
+
+def deploy_file(src, dest):
     src_dir = os.path.dirname(os.path.realpath(__file__))
     src = os.path.join(src_dir, src)
     dest = os.path.join(config.outdir, dest)
-    print "copying from", src, "to", dest
+    print("copying from", src, "to", dest)
     directory = os.path.dirname(dest)
     if not os.path.exists(directory):
         os.makedirs(directory)
-    copyfile(src,dest)
+    copyfile(src, dest)
 
 
 def run(out=sys.stdout):
@@ -969,7 +986,7 @@ def run(out=sys.stdout):
 
     domain = get_domain(config.rooturl)
     conn = httplib.HTTPConnection(domain)
-    print 'connection established to:', domain
+    print('connection established to:', domain)
     complete = set()
     pending = set([config.rooturl])
 
@@ -983,14 +1000,14 @@ def run(out=sys.stdout):
 
         if nurl in complete:
             if config.debug:
-                print url, 'already processed'
+                print(url, 'already processed')
             continue
 
         complete.add(nurl)
         filename = url_to_filename(url)
 
-        #this is needed for the first path as it doesn't know if it is a redirect or not in the begining
-        #at this point all the content of redir_cache is relative to the start path
+        # this is needed for the first path as it doesn't know if it is a redirect or not in the begining
+        # at this point all the content of redir_cache is relative to the start path
         if start:
             start = False
             aux_url = ''
@@ -1006,7 +1023,7 @@ def run(out=sys.stdout):
             continue
 
         if not os.path.exists(filename):
-            print "ERROR: ", url, '\n'
+            print("ERROR: ", url, '\n')
             continue
 
         f = open(filename, 'r')
@@ -1036,32 +1053,31 @@ def run(out=sys.stdout):
         if config.debug:
             out.write(url + '\n => ' + filename + '\n\n')
         n += 1
-        
+
         # Enqueue URLs that we haven't yet spidered.
         for u in new_urls:
             if normalize_url(u) not in complete:
                 # Strip off any #section link.
                 if '#' in u:
                     u = u[:u.index('#')]
-                pending.add(u)        
+                pending.add(u)
 
     conn.close()
-    print "connection to", domain, "closed."
+    print("connection to", domain, "closed.")
     out.write(str(n) + ' files saved\n')
-    print counter, "httplib requests done"
-    print errors, "errors not recovered"
+    print(counter, "httplib requests done")
+    print(errors, "errors not recovered")
 
     # use / not \ so as to work on both windows and mac.
-    deploy_file( "AudacityLogo.png", r"alphamanual.audacityteam.org/m/resources/assets/AudacityLogo.png")
-    deploy_file( "303.css", r"alphamanual.audacityteam.org/m/skins/monobook/main.css/303.css")
-    deploy_file( "headbg.jpg", r"alphamanual.audacityteam.org/m/skins/monobook/headbg.jpg")
-    deploy_file( "audio.png", r"alphamanual.audacityteam.org/m/skins/monobook/audio.png")
-    deploy_file( "bullet.gif", r"alphamanual.audacityteam.org/m/skins/monobook/bullet.gif")
-    deploy_file( "external.png", r"alphamanual.audacityteam.org/m/skins/monobook/external.png")
-    deploy_file( "external_rtl.png", r"alphamanual.audacityteam.org/m/skins/monobook/external_rtl.png")
-    deploy_file( "user.gif", r"alphamanual.audacityteam.org/m/skins/monobook/user.gif")
-    deploy_file( "video.png", r"alphamanual.audacityteam.org/m/skins/monobook/video.png")
-
+    deploy_file("AudacityLogo.png", r"alphamanual.audacityteam.org/m/resources/assets/AudacityLogo.png")
+    deploy_file("303.css", r"alphamanual.audacityteam.org/m/skins/monobook/main.css/303.css")
+    deploy_file("headbg.jpg", r"alphamanual.audacityteam.org/m/skins/monobook/headbg.jpg")
+    deploy_file("audio.png", r"alphamanual.audacityteam.org/m/skins/monobook/audio.png")
+    deploy_file("bullet.gif", r"alphamanual.audacityteam.org/m/skins/monobook/bullet.gif")
+    deploy_file("external.png", r"alphamanual.audacityteam.org/m/skins/monobook/external.png")
+    deploy_file("external_rtl.png", r"alphamanual.audacityteam.org/m/skins/monobook/external_rtl.png")
+    deploy_file("user.gif", r"alphamanual.audacityteam.org/m/skins/monobook/user.gif")
+    deploy_file("video.png", r"alphamanual.audacityteam.org/m/skins/monobook/video.png")
 
 
 def usage():
@@ -1115,7 +1131,7 @@ def usage():
 
     """
 
-    print textwrap.dedent(usage_str.strip('\n'))
+    print(textwrap.dedent(usage_str.strip('\n')))
     sys.exit(1)
 
 
@@ -1126,11 +1142,11 @@ def main():
     global config
     try:
         (opts, args) = getopt.gnu_getopt(sys.argv[1:], 'fsdl:t:b:i:',
-                       ['force', 'no-flatten', 'no-clean',
-                        'no-hack-skin', 'no-made-by', 'left=',
-                        'top=', 'bottom=', 'index=', 'no-move-href',
-                        'no-remove-png', 'no-remove-history', 'limit-parent',
-                        'special-mode', 'debug', 'no-images'])
+                                         ['force', 'no-flatten', 'no-clean',
+                                          'no-hack-skin', 'no-made-by', 'left=',
+                                          'top=', 'bottom=', 'index=', 'no-move-href',
+                                          'no-remove-png', 'no-remove-history', 'limit-parent',
+                                          'special-mode', 'debug', 'no-images'])
     except getopt.GetoptError:
         usage()
 
@@ -1173,7 +1189,7 @@ def main():
             config.sidebar = os.path.abspath(arg)
         if opt in ['-t', '--top']:
             raise NotImplementedError
-            config.header = os.path.abspath(arg)
+            # config.header = os.path.abspath(arg)
         if opt in ['-b', '--bottom']:
             config.footer = os.path.abspath(arg)
         if opt in ['-i', '--index']:
